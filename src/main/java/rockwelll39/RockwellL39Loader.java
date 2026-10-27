@@ -23,12 +23,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import ghidra.app.util.Option;
 import ghidra.app.util.bin.ByteProvider;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.app.util.opinion.AbstractProgramWrapperLoader;
 import ghidra.app.util.opinion.LoadSpec;
-import ghidra.framework.model.DomainObject;
 import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressSpace;
@@ -60,15 +58,18 @@ public class RockwellL39Loader extends AbstractProgramWrapperLoader {
             return Collections.emptyList();
         }
         List<LoadSpec> specs = new ArrayList<>(1);
+        // Not preferred: the size test alone matches many unrelated files, so the user picks this format explicitly.
         specs.add(new LoadSpec(this, 0,
-                new LanguageCompilerSpecPair(LANGUAGE_ID, COMPILER_ID), true));
+                new LanguageCompilerSpecPair(LANGUAGE_ID, COMPILER_ID), false));
         return specs;
     }
 
     @Override
-    protected void load(ByteProvider provider, LoadSpec loadSpec, List<Option> options,
-            Program program, TaskMonitor monitor, MessageLog log)
+    protected void load(Program program, ImporterSettings settings)
             throws CancelledException, IOException {
+        ByteProvider provider = settings.provider();
+        TaskMonitor monitor = settings.monitor();
+        MessageLog log = settings.log();
 
         Memory memory = program.getMemory();
         AddressSpace ram = program.getAddressFactory().getDefaultAddressSpace();
@@ -80,19 +81,8 @@ public class RockwellL39Loader extends AbstractProgramWrapperLoader {
         try {
             createInitialized(memory, ram, "ROM", 0x0000L, provider, 0L, primaryLen, log);
 
-            // Carve out on-chip I/O and RAM regions as separate, volatile
-            // blocks. These are uninitialized so default to all-undefined; the
-            // pspec attaches symbols (PORTA, BSR0, ...) to register addresses.
-            createUninitialized(memory, ram, "IOREG",   0x0000L, 0x0040L, true,  false, log);
-            createUninitialized(memory, ram, "HOSTBUS", 0x0020L, 0x0020L, true,  false, log);
-            createUninitialized(memory, ram, "USART",   0x0033L, 0x000DL, true,  false, log);
-            createUninitialized(memory, ram, "PAGE0",   0x0040L, 0x00C0L, false, false, log);
-            createUninitialized(memory, ram, "STACK",   0x0100L, 0x0100L, false, false, log);
-            createUninitialized(memory, ram, "PAGE2",   0x0200L, 0x0100L, false, false, log);
-            createUninitialized(memory, ram, "PAGE3",   0x0300L, 0x0100L, false, false, log);
-            createUninitialized(memory, ram, "PAGE4",   0x0400L, 0x0100L, false, false, log);
-            createUninitialized(memory, ram, "PAGE5",   0x0500L, 0x00FEL, false, false, log);
-            createUninitialized(memory, ram, "CRC",     0x05FEL, 0x0002L, true,  false, log);
+            // The on-chip I/O, RAM and CRC locations overlay the ROM window at runtime; Ghidra's memory map cannot
+            // hold overlapping blocks, so they stay inside the "ROM" block and are labelled by the pspec symbols.
 
             // Tag each 8 KiB bank as a label for cross-reference.
             SymbolTable st = program.getSymbolTable();
@@ -182,11 +172,5 @@ public class RockwellL39Loader extends AbstractProgramWrapperLoader {
             log.appendMsg("Failed creating overlay " + name + ": " + e.getMessage());
             throw e;
         }
-    }
-
-    @Override
-    public List<Option> getDefaultOptions(ByteProvider provider, LoadSpec loadSpec,
-            DomainObject domainObject, boolean loadIntoProgram) {
-        return super.getDefaultOptions(provider, loadSpec, domainObject, loadIntoProgram);
     }
 }
