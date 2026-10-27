@@ -178,6 +178,7 @@ OP2LD: imm8,Y   is bbb=5 & Y; imm8     { tmp:2 = zext(imm8 + Y); export *:1 tmp;
 OP2LD: imm16,Y  is bbb=7 & Y; imm16    { tmp:2 = imm16 + zext(Y); export *:1 tmp; }
 
 ADDR16: imm16   is imm16               { export *:1 imm16; }
+ADDRP:  (imm16) is imm16               { export *:1 imm16; }
 ADDRI:  (imm16) is imm16               { tmp:2 = imm16; export *:2 tmp; }
 ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 addr; export tmp; }
 
@@ -187,11 +188,36 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
 :ADC OP1     is (cc=1 & aaa=3) ... & OP1
 {
     local op1 = OP1;
-    local tmpC = C;
-    C = carry(A, op1);
-    A = A + op1 + tmpC;
+    local a0 = A;
+    local cin:1 = C;
+    local bsum:2 = zext(a0) + zext(op1) + zext(cin);
+    local res:1 = bsum:1;
+    if (D == 0) goto <binary>;
+    # decimal mode (65C02 behaviour): N and Z come from the corrected result
+    local lo:2 = zext(a0 & 0xf) + zext(op1 & 0xf) + zext(cin);
+    if (lo <= 9) goto <lo_ok>;
+    lo = lo + 6;
+    <lo_ok>
+    local hi:2 = zext(a0 >> 4) + zext(op1 >> 4);
+    if (lo < 0x10) goto <no_lo_carry>;
+    hi = hi + 1;
+    <no_lo_carry>
+    local mid:1 = (hi:1 << 4) | (lo:1 & 0xf);
+    V = (((a0 ^ mid) & (op1 ^ mid)) & 0x80) != 0;
+    if (hi <= 9) goto <hi_ok>;
+    hi = hi + 6;
+    <hi_ok>
+    C = hi > 0xf;
+    res = (hi:1 << 4) | (lo:1 & 0xf);
+    A = res;
     resultFlags(A);
-    V = C;
+    goto <done>;
+    <binary>
+    C = bsum > 0xff;
+    V = (((a0 ^ res) & (op1 ^ res)) & 0x80) != 0;
+    A = res;
+    resultFlags(A);
+    <done>
 }
 
 :AND OP1     is (cc=1 & aaa=1) ... & OP1
@@ -229,9 +255,29 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
 :SBC OP1     is (cc=1 & aaa=7) ... & OP1
 {
     local op1 = OP1;
-    local result = A - op1 - !C;
-    subFlags(A, op1, result);
-    A = result;
+    local a0 = A;
+    local borrow:1 = 1 - C;
+    local res:1 = a0 - op1 - borrow;
+    local ua:2 = zext(a0);
+    local ub:2 = zext(op1) + zext(borrow);
+    local nb:1 = ua >= ub;
+    V = (((a0 ^ op1) & (a0 ^ res)) & 0x80) != 0;
+    C = nb;
+    if (D == 0) goto <binary>;
+    # decimal mode (65C02 behaviour)
+    local lo:2 = zext(a0 & 0xf) - zext(op1 & 0xf) - zext(borrow);
+    local hi:2 = zext(a0 >> 4) - zext(op1 >> 4);
+    if ((lo & 0x10) == 0) goto <lo_ok>;
+    lo = lo - 6;
+    hi = hi - 1;
+    <lo_ok>
+    if ((hi & 0x10) == 0) goto <hi_ok>;
+    hi = hi - 6;
+    <hi_ok>
+    res = (hi:1 << 4) | (lo:1 & 0xf);
+    <binary>
+    A = res;
+    resultFlags(A);
 }
 
 :STA OP1     is (cc=1 & aaa=4) ... & OP1
@@ -365,21 +411,21 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
 
 :JSR ADDR16  is op=0x20; ADDR16
 {
-    *:2 (SP - 1) = inst_next;
+    *:2 (SP - 1) = inst_next - 1;     # the 6502 pushes the address of the last byte of the JSR
     SP = SP - 2;
     call ADDR16;
 }
 
 # JSB#: hardware-vectored short call. Indirect through $FFE0+2*n.
 # The R65C19 datasheet defines opcodes $0B/$1B/$2B/$3B/$4B/$5B/$6B/$7B.
-:JSB0  is op=0x0B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFE0:2; call [tgt]; }
-:JSB1  is op=0x1B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFE2:2; call [tgt]; }
-:JSB2  is op=0x2B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFE4:2; call [tgt]; }
-:JSB3  is op=0x3B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFE6:2; call [tgt]; }
-:JSB4  is op=0x4B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFE8:2; call [tgt]; }
-:JSB5  is op=0x5B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFEA:2; call [tgt]; }
-:JSB6  is op=0x6B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFEC:2; call [tgt]; }
-:JSB7  is op=0x7B  { *:2 (SP-1) = inst_next; SP = SP - 2; tgt:2 = *:2 0xFFEE:2; call [tgt]; }
+:JSB0  is op=0x0B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFE0:2; call [tgt]; }
+:JSB1  is op=0x1B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFE2:2; call [tgt]; }
+:JSB2  is op=0x2B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFE4:2; call [tgt]; }
+:JSB3  is op=0x3B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFE6:2; call [tgt]; }
+:JSB4  is op=0x4B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFE8:2; call [tgt]; }
+:JSB5  is op=0x5B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFEA:2; call [tgt]; }
+:JSB6  is op=0x6B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFEC:2; call [tgt]; }
+:JSB7  is op=0x7B  { *:2 (SP-1) = inst_next - 1; SP = SP - 2; tgt:2 = *:2 0xFFEE:2; call [tgt]; }
 
 :RTI         is op=0x40
 {
@@ -395,6 +441,7 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
     SP = SP + 1;
     local tmp:2 = *:2 SP;
     SP = SP + 1;
+    tmp = tmp + 1;
     return [tmp];
 }
 
@@ -487,6 +534,32 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
     resultFlags(A);
 }
 
+# ADD zp / ADD zp,X ($64 / $74) : opcodes taken from MAME's R65C19 disassembler (black box); the data sheet lists
+# the two forms (2 bytes) but the original OCR of the opcode matrix did not show them.
+:ADD imm8      is op=0x64; imm8
+{
+    local zaddr:2 = imm8;
+    local v:1 = *:1 zaddr;
+    A = A + v;
+    resultFlags(A);
+}
+
+:ADD imm8,X    is op=0x74 & X; imm8
+{
+    local addr:2 = zext(imm8 + X);
+    local v:1 = *:1 addr;
+    A = A + v;
+    resultFlags(A);
+}
+
+# JPI abs ($0C, opcode from MAME's R65C19 disassembler): "PC+1 -> I, (I) -> PC, I+2 -> I": jump to the operand with
+# the return address (the next instruction) left in I; TIP returns.
+:JPI ADDRP     is op=0x0C; ADDRP
+{
+    I = inst_next;
+    call ADDRP;
+}
+
 # ASR  ($3A) : arithmetic shift right of A (sign-extending).
 :ASR A         is op=0x3A & A
 {
@@ -505,10 +578,9 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
 # LAB  ($13) : A = abs(A) treated signed.
 :LAB A         is op=0x13 & A
 {
-    if (A s< 0) goto <skip>;
-    goto inst_next;
-    <skip>
+    if (A s>= 0) goto <flags>;
     A = -A;
+    <flags>
     resultFlags(A);
 }
 
