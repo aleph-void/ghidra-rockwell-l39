@@ -584,8 +584,8 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
     resultFlags(A);
 }
 
-# CLW  ($43) : clear W and V.
-:CLW           is op=0x43
+# CLW  ($52) : clear W and V.  Opcode per the R65C19 data sheet, Table A-1 (page A-2).
+:CLW           is op=0x52
 {
     W = 0;
     V = 0;
@@ -672,8 +672,9 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
     *:1 addr = imm8b:1;
 }
 
-# RBA / SBA  ($C2 / $D2) : 4 bytes — op, imm16(addr), imm8(mask).
-:RBA imm16, "#"imm8b  is op=0xC2; imm16; imm8b
+# RBA / SBA  ($C2 / $D2) : 4 bytes — op, imm8(mask), imm16(addr).  Byte order as MAME's r65c19 disassembler and the
+# C39 support patch for ca65 (cc65 mailing list, 2015); the R65C19 data sheet gives only the 4-byte length.
+:RBA "#"imm8b, imm16  is op=0xC2; imm8b; imm16
 {
     local addr:2 = imm16;
     local mask:1 = imm8b;
@@ -682,7 +683,7 @@ ADDRIX: (imm16,X) is X; imm16          { addr:2 = imm16 + zext(X); tmp:2 = *:2 a
     *:1 addr = v;
 }
 
-:SBA imm16, "#"imm8b  is op=0xD2; imm16; imm8b
+:SBA "#"imm8b, imm16  is op=0xD2; imm8b; imm16
 {
     local addr:2 = imm16;
     local mask:1 = imm8b;

@@ -36,7 +36,7 @@ python3 -I "$HERE/gen_corpus.py" "$W/all.bin"
 "$HERE/decode-corpus.sh" $L "$W/all.bin" "$W/gh.txt" 4
 PATH=$(dirname "$UNIDASM"):$PATH python3 -I "$HERE/unidasm_stream.py" "$W/all.bin" "$W/uni.txt" 12
 python3 -I "$HERE/compare.py" "$W/gh.txt" "$W/uni.txt" "$W/all.bin" --detail | tee "$W/compare.txt" | head -60
-# every difference is one of the explained classes (GHIDRA-RARE.md): reserved opcodes that MAME treats as NOP, RBA/SBA operand order, CLW at 0x43
+# the only differences allowed: opcodes the data sheet leaves empty, which unidasm shows as NOP
 python3 -I "$HERE/check_explained.py" "$W/gh.txt" "$W/uni.txt" "$W/all.bin" || fail=1
 
 echo "== 3. every constructor is reached"
@@ -47,7 +47,7 @@ echo "== 4. linear sweep of a 20,000-instruction stream"
 python3 -I "$HERE/stream_test.py" gen "$W/gh.txt" "$W/uni.txt" "$W/all.bin" "$W/stream.bin" 20000
 "$UNIDASM" "$W/stream.bin" -arch r65c19 -basepc 0x1000 > "$W/stream.uni"
 BASE_ADDR=0x1000 "$HERE/ghidra-script.sh" raw $L "$W/stream.bin" DumpDisasm.java 4 "$W/stream.gh"
-python3 -I "$HERE/stream_test.py" cmp "$W/stream.gh" "$W/stream.uni" --explained || fail=1
+python3 -I "$HERE/stream_test.py" cmp "$W/stream.gh" "$W/stream.uni" || fail=1
 
 echo "== 5. p-code: hand-computed emulator tests"
 mkdir -p "$W/emu"

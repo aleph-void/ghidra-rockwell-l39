@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """check_explained.py <ghidra.txt> <unidasm.txt> <corpus.bin>: every module/unidasm difference must be in an explained class:
- (a) module undefined, unidasm shows 'nop ...' or 'clw' for a reserved opcode (MAME's choice; see GHIDRA-RARE.md),
- (b) RBA / SBA: MAME puts the mask before the 16-bit address, the module (like BAR / BAS) the address first,
- (c) opcode 0x43: module CLW, MAME nop.
+ the module has no instruction where unidasm shows 'nop ...': opcodes the R65C19 data sheet's opcode matrix
+ (Table A-1) leaves empty.
 Anything else is a failure."""
 import re
 import sys
@@ -27,13 +26,9 @@ for i in sorted(g):
     if gl == 5 and ul == 5:
         gk, uk = (gk[0], gk[1][:-1]), (uk[0], uk[1][:-1])
     if gt == 'BAD':
-        if ut.startswith(('nop', 'clw')):
+        if ut.startswith('nop'):
             continue
     elif gl == ul and gk == uk:
-        continue
-    elif gl == ul and gk[0] == uk[0] and gk[0] in ('rba', 'sba'):
-        continue
-    elif data[4 * i] == 0x43 and gt == 'CLW' and ut == 'nop':
         continue
     bad += 1
     if bad <= 10:

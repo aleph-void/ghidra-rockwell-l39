@@ -47,11 +47,8 @@ else:
     n = min(len(gl), len(ul))
     for (go, gb, gt), (ua, ub, ut) in zip(gl, ul):
         if int(go, 16) + base != ua or len(gb) // 2 != ub or norm(gt) != norm(ut):
-            if '--explained' in sys.argv and ((norm(gt).startswith(('rba', 'sba')) and norm(ut)[:3] == norm(gt)[:3]) or (gt == 'CLW' and ut == 'nop')):
-                expl += 1
-                continue
             bad += 1
             if bad <= 10:
                 print('   DIFF', go, gb, gt, '|', hex(ua), ut)
-    print(f'   {n - bad - expl}/{n} instructions identical (address, length, text) in a {n}-instruction linear sweep; {expl} explained differences (RBA/SBA operand order, CLW), {bad} unexplained')
+    print(f'   {n - bad - expl}/{n} instructions identical (address, length, text) in a {n}-instruction linear sweep, {bad} different')
     sys.exit(1 if bad or len(gl) != len(ul) else 0)
