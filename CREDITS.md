@@ -3,6 +3,7 @@
 | | |
 |---|---|
 | Source | https://github.com/honx/rockwell_l39_ghidra, HEAD `d1e76d5` (this directory is `ghidra/RockwellL39` there; 11 commits, all 2026-05-05) |
+| Repository | this repository holds the history of `ghidra/RockwellL39` only (`git subtree split`, original authors kept); the rest of upstream (talk slides, firmware notes, banking diagrams) is not included |
 | License | Apache-2.0 (`LICENSE`) |
 | Original author | honx (GitHub @honx): SLEIGH module, loader, banking scripts, documentation |
 | Based on | Rockwell R65C19 Microcomputer data sheet (Order No. 410, January 1992) and the C40/L39 technical reference manual, as cited in the slaspec |
