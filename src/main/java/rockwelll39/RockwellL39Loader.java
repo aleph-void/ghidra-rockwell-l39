@@ -27,6 +27,7 @@ import ghidra.app.util.bin.ByteProvider;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.app.util.opinion.AbstractProgramWrapperLoader;
 import ghidra.app.util.opinion.LoadSpec;
+import ghidra.app.util.opinion.LoaderTier;
 import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressSpace;
@@ -47,6 +48,20 @@ public class RockwellL39Loader extends AbstractProgramWrapperLoader {
     @Override
     public String getName() {
         return "Rockwell C40/L39/L3902 firmware";
+    }
+
+    // The file has no signature, so this loader accepts almost any file of the right size. It ranks
+    // after the Raw Binary loader (untargeted, priority 100): Ghidra imports with the first loader that
+    // accepts a file, and a headless import with -processor forces that language onto it. Pick this
+    // loader by name instead.
+    @Override
+    public LoaderTier getTier() {
+        return LoaderTier.UNTARGETED_LOADER;
+    }
+
+    @Override
+    public int getTierPriority() {
+        return 101;
     }
 
     @Override

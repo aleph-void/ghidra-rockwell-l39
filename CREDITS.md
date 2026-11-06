@@ -20,6 +20,10 @@ Other implementations: `gh search repos` for "ghidra r65c19", "rockwell l39 ghid
 5. Loader ported to the Ghidra 12 loader API (it targeted a removed signature and had never been built); overlapping I/O / RAM blocks
    dropped (the pspec labels the registers); no longer the preferred loader for any file whose size is a multiple of 8 KiB.
 6. Build files (`build.gradle`, `extension.properties`, extension name `L39`), `LICENSE` copy, `test/`, `GHIDRA-RARE.md`, this file.
+7. Loader ranking: the firmware loader ranks after Ghidra's Raw Binary loader. The file has no signature, so the
+   loader accepts almost any file of the right size; ranked first, it was used for unrelated files and for every
+   headless `-processor` import of another language. It is still offered: pick it by name (`-loader RockwellL39Loader`
+   headless).
 
 ## Sources and tools
 - Rockwell R65C19 Microcomputer data sheet, January 1992, from the 6502.org document archive
